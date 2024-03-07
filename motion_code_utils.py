@@ -2,8 +2,8 @@ import numpy as np
 import jax.numpy as jnp
 from scipy.optimize import minimize
 
-from sparse_gp import *
-from utils import *
+from .sparse_gp import *
+from .utils import *
 
 def optimize_motion_codes(X_list, Y_list, labels, model_path, m=10, Q=8, latent_dim=3, sigma_y=0.1):
     '''

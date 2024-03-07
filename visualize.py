@@ -14,6 +14,7 @@ from sparse_gp import *
 from utils import *
 from data_processing import load_data, process_data_for_motion_codes, split_train_test_forecasting
 from motion_code import MotionCode
+import pdb
 
 # Color list for plotting
 COLOR_LIST = ['red', 'blue', 'green', 'orange', 'purple', 'black', 'brown', 'grey', 'yellow', 'black', 'hotpink']
@@ -40,6 +41,7 @@ def visualize_data_by_GP(data, num_motion, m=10, Q=1, label_names=[], plot_path=
     
     handles = []
     for k in range(num_motion):
+        pdb.set_trace()
         handles.append(mlines.Line2D([], [], color=COLOR_LIST[k], marker='x', 
                         linestyle='None', markersize=5, label=label_names[k] + ' train data'))
         handles.append(mlines.Line2D([], [], color=COLOR_LIST[k], marker='o', 

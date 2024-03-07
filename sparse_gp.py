@@ -1,11 +1,11 @@
 import numpy as np
 import jax.numpy as jnp
 import jax.scipy as jsp
-
+import jax
 from jax import jit, value_and_grad
-from jax.config import config
 
-config.update("jax_enable_x64", True)
+
+jax.config.update("jax_enable_x64", True)
 
 # Constants
 TWO_PI_SQRT = jnp.sqrt(jnp.pi)

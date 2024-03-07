@@ -125,3 +125,40 @@ def split_train_test_forecasting(Y, percentage):
     test_num_steps = seq_length - train_num_steps
     
     return Y[:, :train_num_steps], Y[:, train_num_steps:], train_num_steps, test_num_steps
+
+
+def process_data_for_motion_codes(Y, labels):
+    '''
+    Data processing specifically for MotionCodes as the algorithm also need a generated time variable X.
+    '''
+    Y, labels = process_data(Y, labels)
+    return add_time_variable(Y, labels)
+
+
+
+
+def process_ppmi_data(Y, labels):
+    '''
+    Simple data processing for collections of time series.
+    Make Y 2d array and normalize labels to [0..L-1], where L is the number of labels.
+    '''
+    try:
+        labels = np.array(labels, dtype=int)
+        labels_unique = np.sort(np.unique(labels))
+        num_motion = labels_unique.shape[0]
+        labels_to_indices = {}
+        for k in range(num_motion):
+            labels_to_indices[labels_unique[k]] = k
+        for i in range(labels.shape[0]):
+            labels[i] = labels_to_indices[labels[i]]
+    except:
+        return np.array([]), np.array([])
+    
+    return Y, labels
+
+def process_ppmi_data_for_motion_codes(Y, labels):
+    '''
+    Data processing specifically for MotionCodes as the algorithm also need a generated time variable X.
+    '''
+    Y, labels = process_ppmi_data(Y, labels)
+    return add_time_variable(Y, labels)

@@ -3,7 +3,7 @@ import pandas as pd
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from sparse_gp import *
+from .sparse_gp import *
 
 # Color list for plotting
 COLOR_LIST = ['red', 'blue', 'green', 'orange', 'purple', 'black', 'brown', 'grey', 'yellow', 'black', 'hotpink']

@@ -2,10 +2,10 @@ import time
 from tqdm import tqdm
 import numpy as np
 
-from data_processing import load_data, process_data_for_motion_codes, split_train_test_forecasting
-from motion_code_utils import optimize_motion_codes, classify_predict_helper
-from sparse_gp import sigmoid, q
-from utils import accuracy, RMSE
+from .data_processing import load_data, process_data_for_motion_codes, split_train_test_forecasting
+from .motion_code_utils import optimize_motion_codes, classify_predict_helper
+from .sparse_gp import sigmoid, q
+from .utils import accuracy, RMSE
 
 class MotionCode:
     """
