@@ -52,10 +52,9 @@ data/noisy/*.npy
 data/sound/*
 
 # Out file
-
+out/*
 # Model files
 saved_models/*
-
 # Log files
 logs/*
 
