@@ -176,6 +176,16 @@ def elbo_fn(X_list, Y_list, labels, sigma_y, dims):
 
     return elbo_grad_wrapper
 
+@jit
+def safe_symmetric_matrix_inv(A):
+    """
+        Use cholesky factorization to safely inverse a symmetric matrix
+    """ 
+    L = jsp.linalg.cho_factor(A)
+    Ainv = jsp.linalg.cho_solve(L, jnp.eye(A.shape[0]))
+    return Ainv
+
+
 ## Predict distribution, mean and covariance methods from trained kernel parameters and inducing pts ##
 @jit
 def phi_opt(X_m, X_list, Y_list, sigma_y, kernel_params):
@@ -196,9 +206,10 @@ def phi_opt(X_m, X_list, Y_list, sigma_y, kernel_params):
     B = len(X_list)
 
     # Get K_mm and its inverse
-    K_mm = spectral_kernel(X_m, X_m, sigma, alpha)\
-        + jitter(X_m.shape[0])
-    K_mm_inv = jnp.linalg.inv(K_mm)
+    K_mm = spectral_kernel(X_m, X_m, sigma, alpha)#\
+        #+ jitter(X_m.shape[0])
+    #K_mm_inv = jnp.linalg.inv(K_mm) 
+    K_mm_inv = safe_symmetric_matrix_inv(K_mm)
     
     # Get list of K_nm and K_mn
     K_nm_list = []
@@ -211,7 +222,8 @@ def phi_opt(X_m, X_list, Y_list, sigma_y, kernel_params):
     Lambda = K_mm
     for j in range(B):
         Lambda += precision/B * K_mn_list[j] @ K_nm_list[j]
-    Sigma = jnp.linalg.inv(Lambda)
+    #Sigma = jnp.linalg.inv(Lambda)
+    Sigma = safe_symmetric_matrix_inv(Lambda)
     factor = 1/B*precision*K_mm @ Sigma
 
     # Calculate variance
@@ -225,6 +237,8 @@ def phi_opt(X_m, X_list, Y_list, sigma_y, kernel_params):
         mu_m += (factor @ K_mn_list[j]).dot(y_n)
 
     return mu_m, A_m, K_mm_inv
+
+
 
 @jit
 def q(X_test, X_m, kernel_params, mu_m, A_m, K_mm_inv):

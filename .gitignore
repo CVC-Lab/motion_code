@@ -60,3 +60,7 @@ logs/*
 
 # Notebook checkpoints
 .ipynb_checkpoints/*
+.env/
+.vscode/*.json
+cuda12.3/
+data/

@@ -2,10 +2,10 @@ import time
 from tqdm import tqdm
 import numpy as np
 
-from .data_processing import load_data, process_data_for_motion_codes, split_train_test_forecasting
-from .motion_code_utils import optimize_motion_codes, classify_predict_helper
-from .sparse_gp import sigmoid, q
-from .utils import accuracy, RMSE
+from data_processing import load_data, process_data_for_motion_codes, split_train_test_forecasting
+from motion_code_utils import optimize_motion_codes, classify_predict_helper
+from sparse_gp import sigmoid, q
+from utils import accuracy, RMSE
 
 class MotionCode:
     """
@@ -90,9 +90,9 @@ class MotionCode:
         for k in range(self.num_motion):
             self.kernel_params.append((self.Sigma[k], self.W[k]))
 
-    def classify_predict(self, X_test, Y_test):
+    def classify_predict(self, X_test, Y_test, mode='dt'):
         return classify_predict_helper(X_test, Y_test, self.kernel_params, 
-                                       self.X_m, self.Z, self.mu_ms, self.A_ms, self.K_mm_invs)
+                                       self.X_m, self.Z, self.mu_ms, self.A_ms, self.K_mm_invs, mode=mode)
     
     def classify_predict_on_batches(self, X_test_list, Y_test_list, true_labels):
         # Predict each trajectory/timeseries in the test dataset
@@ -171,3 +171,6 @@ def motion_code_forecast(model, name, percentage, load_existing_model=False):
     err = model.forecast_predict_on_batches(test_time_horizon, Y_test, labels)
 
     return err
+
+class MotionCodeDerivativeInformed(MotionCode):
+    pass
