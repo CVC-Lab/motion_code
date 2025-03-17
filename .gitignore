@@ -61,6 +61,7 @@ logs/*
 # Notebook checkpoints
 .ipynb_checkpoints/*
 .env/
+.env_pytorch_cu12.4/
 .vscode/*.json
 cuda12.3/
 data/
