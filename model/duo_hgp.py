@@ -59,8 +59,13 @@ class SparseGP(nn.Module):
         self.sigma_y = sigma_y
         self.output_dim = output_dim
 
-
-        self.S_m = nn.Parameter(torch.linspace(0.1, 0.9, num_inducing_points, dtype=torch.float32))
+        self.inducing_point_encoder = nn.Sequential(
+           nn.Linear(num_latents, num_inducing_points, bias=False),
+           nn.LeakyReLU()
+                     )
+        torch.nn.init.xavier_uniform_(self.inducing_point_encoder[0].weight)
+        self.z = nn.Parameter(torch.ones(num_latents, dtype=torch.float32))
+        #self.S_m = nn.Parameter(torch.linspace(0.1, 0.9, num_inducing_points, dtype=torch.float32))
         
 
         # Variational distribution parameters (mean and covariance)
@@ -72,8 +77,7 @@ class SparseGP(nn.Module):
         self.kernel = kernel_func()
     
     def get_inducing_points(self):
-        #S_m = self.inducing_point_encoder(self.z).unsqueeze(-1)
-        S_m = torch.nn.functional.relu(self.S_m).unsqueeze(-1)
+        S_m = self.inducing_point_encoder(self.z).unsqueeze(-1)
         return S_m
     
     def _update_variational_means_and_covars(self, y_k, K_uf, K_uu, sigma_y):
@@ -93,16 +97,19 @@ class SparseGP(nn.Module):
             Sigma_k: Updated variational covariance, shape (M, M).
         """
         # Compute H_k = K_Tk_Sm @ inv(K_Sm_Sm)
-        if False:
-            mu_prev =  torch.zeros((self.num_inducing_points, self.output_dim)).double().detach().to(y_k.device)
-            precision_prev =  torch.eye(self.num_inducing_points).double().detach().to(y_k.device)
-        else:
-            mu_prev = self.variational_mean.detach().to(y_k.device)
-            precision_prev = self.precision_covar.detach().to(y_k.device)
         B = y_k.shape[0]
         
         jitter_uu = 1e-6 * torch.eye(self.num_inducing_points, device=y_k.device)  # Shape: (1, M, M)
         K_uu_jittered = K_uu + jitter_uu  # Shape: (1, M, M)
+        if True:
+            mu_prev =  torch.zeros((self.num_inducing_points, self.output_dim)).float().detach().to(y_k.device)
+            Lu = torch.linalg.cholesky(K_uu_jittered)
+            precision_prev = torch.cholesky_inverse(Lu)
+            #precision_prev =  torch.zeros(self.num_inducing_points).float().detach().to(y_k.device)
+        else:
+            mu_prev = self.variational_mean.detach().to(y_k.device)
+            precision_prev = self.precision_covar.detach().to(y_k.device)
+        
         #K_uu_inv = torch.linalg.pinv(K_uu_jittered)  # m * m
         # K_Tk_Sm = K_Sm_Tk.permute(0, 2, 1)
         # H_k = torch.mean(K_Tk_Sm, dim=0) @ K_uu_inv  # Shape: (N, M)
@@ -201,6 +208,11 @@ class SparseGP(nn.Module):
     def compute_mse_loss(self, x, y):
         y_pred, _, _, _, _, _ = self.forward(x)
         return torch.nn.MSELoss()(y_pred, y)
+    
+    def compute_mse_loss(self):
+        # y_pred, _, _, _, _, _ = self.forward(x)
+        # return torch.nn.MSELoss()(y_pred, y)
+        return torch.sum(self.z ** 2)
 
 class Observer(nn.Module):
     pass

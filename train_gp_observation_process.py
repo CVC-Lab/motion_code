@@ -163,7 +163,7 @@ model.train()
 def plot_check(t, x):
     
     # We predict on test time horizon [1, 1.2] with 20 time steps
-    test_time_horizon = np.linspace(0, 2.2, 100)
+    test_time_horizon = np.linspace(0, 2.0, 100)
     # label is the label for the stochastic process we predict
     with torch.no_grad():
         means, covars, _, _, _, S_ms = model(torch.tensor(test_time_horizon).float().to(device).unsqueeze(1))
@@ -199,7 +199,7 @@ def plot_check(t, x):
     return fig
 
 from torch.utils.tensorboard import SummaryWriter
-writer = SummaryWriter('./logs/debug_optim/LBFGS')
+writer = SummaryWriter('./logs/debug_encoder/Adam')
 
 model = model.to(device)
 num_iters = 100

@@ -2,14 +2,15 @@ import torch
 import torch.nn as nn
 import torch.distributions as dist
 import numpy as np
+from .duo_hgp import SparseGP
 
 
 # Define the RBF Kernel
 class RBFKernel(nn.Module):
     def __init__(self, lengthscale=0.5, variance=1.0):
         super(RBFKernel, self).__init__()
-        self.lengthscale = nn.Parameter(torch.tensor(lengthscale, dtype=torch.float64))
-        self.variance = nn.Parameter(torch.tensor(variance, dtype=torch.float64))
+        self.lengthscale = nn.Parameter(torch.tensor(lengthscale, dtype=torch.float32))
+        self.variance = nn.Parameter(torch.tensor(variance, dtype=torch.float32))
 
     def forward(self, x1, x2):
         """
@@ -293,7 +294,7 @@ class MultiOutputSparseGPLayer(nn.Module):
         self.sigma_y = sigma_y
 
         # kernel modules
-        self.gaussian_processes = nn.ModuleList([SparseGPLayer(input_dim, num_inducing_points, num_latents, kernel_func=kernel_func, sigma_y=sigma_y)  for _ in range(num_outputs)])
+        self.gaussian_processes = nn.ModuleList([SparseGP(input_dim, num_inducing_points, num_latents, kernel_func=kernel_func, sigma_y=sigma_y)  for _ in range(num_outputs)])
 
 
     def forward(self, x):
@@ -329,7 +330,7 @@ class MultiOutputSparseGPLayer(nn.Module):
     def compute_loss(self, x_list, y_list, epoch=0):
         loss = 0
         for l in range(self.num_outputs):
-            vfe, logdet, quad, trace = self.gaussian_processes[l].compute_vfe_loss(x_list[l], y_list[l], epoch)
+            vfe, logdet, quad, trace = self.gaussian_processes[l].compute_vfe_loss(x_list[l], y_list[l])
             loss = loss + vfe + self.gaussian_processes[l].compute_mse_loss()
         return loss / self.num_outputs
 
@@ -343,7 +344,7 @@ class MultiOutputSparseGPLayer(nn.Module):
     
         y_predict = torch.stack(predictive_mean_list, dim = 0).squeeze(-1)
         #print(torch.mean((y_predict - y_list ) ** 2, dim=-1))
-        return torch.argmax( torch.mean((y_predict - y_list ) ** 2, dim=-1), dim=0)
+        return torch.argmin(torch.mean((y_predict - y_list) ** 2, dim=-1), dim=0)
 
 
     def forecast(self, x):
