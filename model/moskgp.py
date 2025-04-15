@@ -46,6 +46,71 @@ class RBFKernel(nn.Module):
         """
         return torch.clamp(self.variance, 1e-6) * torch.ones((x.shape[0], x.shape[1])).to(x.device)
 
+class RationalQuadraticKernel(nn.Module):
+    def __init__(self, lengthscale=0.5, variance=1.0, alpha=1.0):
+        super(RationalQuadraticKernel, self).__init__()
+        self.lengthscale = nn.Parameter(torch.tensor(lengthscale, dtype=torch.float32))
+        self.variance = nn.Parameter(torch.tensor(variance, dtype=torch.float32))
+        self.alpha = nn.Parameter(torch.tensor(alpha, dtype=torch.float32))
+
+    def forward(self, x1, x2):
+        """
+        Rational Quadratic kernel between x1 and x2.
+        Inputs:
+            x1: Tensor (B, N, d)
+            x2: Tensor (B, M, d)
+        Output:
+            Kernel matrix (B, N, M)
+        """
+        if len(x1.shape) == 2:
+            x1 = x1.unsqueeze(0)
+        if len(x2.shape) == 2:
+            x2 = x2.unsqueeze(0)
+
+        x1_norm = torch.sum(x1 ** 2, dim=-1, keepdim=True)
+        x2_norm = torch.sum(x2 ** 2, dim=-1, keepdim=True)
+
+        dist_sq = x1_norm + x2_norm.transpose(-1, -2) - 2 * torch.matmul(x1, x2.transpose(-1, -2))
+
+        # RQ kernel computation
+        denom = 2 * self.alpha * self.lengthscale ** 2
+        base = 1 + dist_sq / denom
+        return torch.clamp(self.variance, 1e-6) * base.pow(-self.alpha)
+
+    def diag(self, x):
+        """
+        Returns the diagonal of the kernel matrix (B, N)
+        """
+        return torch.clamp(self.variance, 1e-6) * torch.ones((x.shape[0], x.shape[1]), device=x.device)
+
+
+class SumOfKernel(nn.Module):
+    def __init__(self, L=2, kernel_func=RationalQuadraticKernel):
+        super(SumOfKernel, self).__init__()
+        if not isinstance(kernel_func, list):
+            self.kernels = nn.ModuleList([
+                kernel_func(
+                    lengthscale=0.5 + 0.1 * i,
+                    variance=1.0,
+                    alpha=1.0 + 0.1 * i
+                ) for i in range(L)
+            ])
+        self.raw_weights = nn.Parameter(torch.zeros(L))
+
+    def forward(self, x1, x2):
+        weights = torch.softmax(self.raw_weights, dim=0)  # ensure positivity
+        k_sum = 0
+        for w, k in zip(weights, self.kernels):
+            k_sum += w * k(x1, x2)
+        return k_sum
+
+    def diag(self, x):
+        weights = torch.softmax(self.raw_weights, dim=0)
+        d_sum = 0
+        for w, k in zip(weights, self.kernels):
+            d_sum += w * k.diag(x)
+        return d_sum
+
 class KernelDynamics(torch.autograd.Function):
 
     @staticmethod
