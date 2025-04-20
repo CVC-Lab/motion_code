@@ -69,9 +69,14 @@ class SparseGP(nn.Module):
         
 
         # Variational distribution parameters (mean and covariance)
-        self.variational_mean = torch.zeros((num_inducing_points, self.output_dim))
-        self.variational_covar = torch.eye(num_inducing_points)
-        self.precision_covar =  torch.eye(num_inducing_points)
+        # self.variational_mean = torch.zeros((num_inducing_points, self.output_dim))
+        # self.variational_covar = torch.eye(num_inducing_points)
+        # self.precision_covar =  torch.eye(num_inducing_points)
+
+        self.register_buffer("variational_mean",  torch.zeros((num_inducing_points, self.output_dim)))
+        self.register_buffer("variational_covar",  torch.eye(num_inducing_points))
+        self.register_buffer("precision_covar",   torch.eye(num_inducing_points))
+        
 
         # Kernel function
         self.kernel = kernel_func()
@@ -213,6 +218,39 @@ class SparseGP(nn.Module):
         # y_pred, _, _, _, _, _ = self.forward(x)
         # return torch.nn.MSELoss()(y_pred, y)
         return torch.sum(self.z ** 2)
+    
+    @torch.no_grad
+    def update_variational_distribution(self, x, y):
+        self.inducing_points = self.get_inducing_points()
+
+        K_uu = self.kernel(self.inducing_points, self.inducing_points)  # Covariance of inducing points
+        K_uu.squeeze_(0)
+        K_uf = self.kernel(self.inducing_points, x)  # Cross-covariance between inducing points and inputs
+        
+        # Predictive mean and covariance
+        K_uu_jittered = K_uu + 1e-6 * torch.eye(self.num_inducing_points).to(x.device)
+        H_k_T = torch.linalg.solve(K_uu_jittered, K_uf)
+        mu_prev = self.variational_mean.detach().to(y.device)
+        precision_prev = self.precision_covar.detach().to(y.device)
+
+        # Compute Sigma_k^{-1} = Sigma_prev^{-1} + H_k^T @ inv(V_k) @ H_k
+        sigma_y2_inv = 1./ self.sigma_y ** 2
+        precision_next = precision_prev + sigma_y2_inv * torch.mean(torch.einsum("bmn,bpn->bmp", H_k_T, H_k_T), dim=0) # Shape: (M, M)
+
+        # Compute Sigma_k = inv(Sigma_k^{-1})
+        L = torch.linalg.cholesky(precision_next)
+        Sigma_k = torch.cholesky_inverse(L)  # Shape: (M, M)
+        
+        # Compute mu_k = Sigma_k @ {H_k^T @ inv(V_k) @ y_k + Sigma_prev^{-1} @ mu_prev}
+        mu_k = torch.linalg.solve(precision_next, sigma_y2_inv *  torch.mean(torch.bmm(H_k_T, y), dim=0) + precision_prev @ mu_prev)  # Shape: (M,)
+        # if epoch>0:
+        #     self.variational_mean = mu_prev.to(y_k.device)
+        # else:
+        self.variational_mean = mu_k.to(y.device)
+        self.variational_covar = Sigma_k.to(y.device)
+        self.precision_covar = precision_next.to(y.device)
+        return self.variational_mean, self.variational_covar, self.precision_covar
+
 
 class Observer(nn.Module):
     pass

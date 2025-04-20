@@ -4,3 +4,8 @@ Under development
 
 Check train_gp_observation_process.py
 For moskgp check train.py
+
+
+## Multiphase Example
+
+Refer multiphase_moskgp_example.ipynb

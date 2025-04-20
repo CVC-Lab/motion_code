@@ -1,6 +1,20 @@
 import torch
 import numpy as np
-from .moskgp import MultiOutputSparseGPLayer
+from .moskgp import MultiOutputSparseGPLayer, RationalQuadraticKernel, SumOfKernel
+
+def unpack_data_1d(X : torch.tensor, Y, labels):
+    # Initialize lists to store x_list and y_list for each class
+    x_list_by_class = []
+    y_list_by_class = []
+
+    # Iterate through each unique class label
+    for label in torch.unique(labels, sorted=True):
+        mask = (labels == label)
+        # Append the filtered x_list and y_list to the respective lists
+        x_list_by_class.append(X[mask].unsqueeze(-1))
+        y_list_by_class.append(Y[mask].unsqueeze(-1))
+
+    return x_list_by_class, y_list_by_class
 
 class MultiPhaseAMModel(torch.nn.Module):
     def __init__(self, input_dim, num_inducing_points, num_latents, num_outputs, sigma_y = 0.1):
@@ -15,11 +29,11 @@ class MultiPhaseAMModel(torch.nn.Module):
         
         # inner model    
         self.freq_model = MultiOutputSparseGPLayer(input_dim, num_inducing_points, num_latents, num_outputs, sigma_y=0.1)
-        self.wavelet_model = MultiOutputSparseGPLayer(input_dim, num_inducing_points, num_latents, num_outputs, sigma_y=0.1, kernel_func=SumOfKernel)
+        self.wavelet_model = MultiOutputSparseGPLayer(input_dim, num_inducing_points, num_latents, num_outputs, sigma_y=0.1, kernel_func=RationalQuadraticKernel)
 
     def _fft_feat(self, x: torch.Tensor, nt=100):
-        fft_feat = torch.fft.fft(x)
-
+        #TODO: remove this scale down scheme later
+        fft_feat = torch.fft.fft(x, norm='ortho')
         return fft_feat.abs()[:,:nt//2].to(x.device)
     
     def _fft_freq(self, x: torch.Tensor, nt=100):
@@ -92,10 +106,13 @@ class MultiPhaseAMModel(torch.nn.Module):
         x: Tensor of shape (B, N, d), where N is input_size
         """
         # Pass through model
+        
         if len(x.shape)==2:
             x.unsqueeze_(-1)
+        _ , N , _ = x.shape
         output_freq = self.freq_model(self._fft_freq(x).unsqueeze(-1))
-        output_wavelet = self.wavelet_model(x)
+        output_wavelet = None
+        #output_wavelet = self.wavelet_model(x[:,:N//4,:] * 4)
         return output_freq, output_wavelet
 
     
@@ -105,8 +122,8 @@ class MultiPhaseAMModel(torch.nn.Module):
         y_list = fft_y.unsqueeze(0).repeat(self.num_outputs,1,1)
         fft_output, _ = self.forward(fft_x.unsqueeze(-1))
         predictive_mean_list, predictive_cor_list, _ = fft_output
-        for l in range(self.num_outputs):
-            std = torch.sqrt(torch.diag(predictive_cor_list[l][0])).reshape(-1)
+        #for l in range(self.num_outputs):
+            #std = torch.sqrt(torch.diag(predictive_cor_list[l][0])).reshape(-1)
             #print(self.gaussian_processes[l].S_m.T)
     
         y_predict = torch.stack(predictive_mean_list, dim = 0).squeeze(-1)
@@ -123,13 +140,26 @@ class MultiPhaseAMModel(torch.nn.Module):
     def compute_loss(self, x_list, y_list, epoch=0):
         # Transmute y_list 
         x_freq_list = []
+        x_wavelet_list = []
         y_freq_list = []
         y_wavelet_list = []
+        
         
         for l in range(self.num_outputs):
             fft_y, wavelet_y = self.transmute(y_list[l])
             x_freq_list.append(self._fft_freq(x_list[l]).unsqueeze(-1))
+            _, N, _ = x_list[l].shape
+            x_wavelet_list.append(x_list[l][:,:N//4,:] * 4)
             y_freq_list.append(fft_y.unsqueeze(-1))
-            y_wavelet_list.append(wavelet_y.unsqueeze(-1))
-        loss = self.freq_model.compute_loss(x_freq_list, y_freq_list, epoch=epoch) + self.wavelet_model.compute_loss(x_list, y_wavelet_list, epoch=epoch)
+            y_wavelet_list.append(wavelet_y[:,:N//4].unsqueeze(-1))
+        loss = self.freq_model.compute_loss(x_freq_list, y_freq_list, epoch=epoch) #+ self.wavelet_model.compute_loss(x_wavelet_list, y_wavelet_list, epoch=epoch)
         return loss
+
+    @torch.no_grad()
+    def update_from_obs(self, x: torch.Tensor, y: torch.Tensor):
+        label_predicted = self.freq_model.predict(x, y)
+        fft_y = self._fft_feat(y)
+        fft_x = self._fft_freq(y)
+        x_list, y_list = unpack_data_1d(fft_x, fft_y, label_predicted)
+        output_freq = self.freq_model.update_variational_distribution(x_list, y_list)
+        return output_freq

@@ -189,7 +189,7 @@ class SparseGPLayer(nn.Module):
         L = torch.linalg.cholesky(K_uu + 1e-6 * torch.eye(self.num_inducing_points))
         self.precision_covar = torch.cholesky_inverse(L)
     
-    def _update_variational_means_and_covars(self, y_k, K_uf, K_uu, sigma_y, epoch=0):
+    def update_variational_means_and_covars(self, y_k, K_uf, K_uu, sigma_y, epoch=0):
         """
         Update the variational mean and covariance using the given update rule.
         
@@ -284,7 +284,7 @@ class SparseGPLayer(nn.Module):
         # Variational distribution update
         Sigma_prev = self.variational_covar.detach().to(x.device)
         if self.training:
-            self._update_variational_means_and_covars(y, K_uf, K_uu, self.sigma_y, epoch)
+            self.update_variational_means_and_covars(y, K_uf, K_uu, self.sigma_y, epoch)
         
         jitter_uu = 1e-12 * torch.eye(M, device=x.device)  # Shape: (1, M, M)
         K_uu_jittered = K_uu + jitter_uu  # Shape: (1, M, M)
@@ -416,6 +416,17 @@ class MultiOutputSparseGPLayer(nn.Module):
         means, covars, S_ms = self.forward(x.unsqueeze(-1)) 
         return means, covars, S_ms
 
+    @torch.no_grad
+    def update_variational_distribution(self, x_list, y_list):
+        var_mean_list = []
+        var_cov_list = []
+        var_prec_list = []
+        for l in range(self.num_outputs):
+            mean, cov, prec = self.gaussian_processes[l].update_variational_distribution(x_list[l], y_list[l])
+            var_mean_list.append(mean)
+            var_cov_list.append(cov)
+            var_prec_list.append(prec)
+        return var_mean_list, var_cov_list, var_prec_list
 
 # Define the ELBO Loss
 def elbo_loss(y_pred_mean, y_pred_covar, y_true, variational_dist, K_uu):
