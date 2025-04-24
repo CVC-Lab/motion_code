@@ -104,3 +104,5 @@ if __name__=="__main__":
     img , label = material_dataset[0]
     print(label)
     plt.imshow(img.detach().numpy().squeeze())
+    plt.savefig('test.png')
+    plt.close()
