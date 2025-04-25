@@ -55,7 +55,7 @@ class SparseGP(nn.Module):
 
         self.inducing_point_encoder = nn.Sequential(
            nn.Linear(num_latents, num_inducing_points, bias=False),
-           nn.LeakyReLU()
+           nn.Sigmoid()
                      )
         torch.nn.init.xavier_uniform_(self.inducing_point_encoder[0].weight)
         self.z = nn.Parameter(torch.ones(num_latents, dtype=torch.float32))
@@ -222,7 +222,7 @@ class SparseGP(nn.Module):
         K_uf = self.kernel(self.inducing_points, x)  # Cross-covariance between inducing points and inputs
         
         # Predictive mean and covariance
-        K_uu_jittered = K_uu + 1e-6 * torch.eye(self.num_inducing_points).to(x.device)
+        K_uu_jittered = K_uu + 1e-12 * torch.eye(self.num_inducing_points).to(x.device)
         H_k_T = torch.linalg.solve(K_uu_jittered, K_uf)
         mu_prev = self.variational_mean.detach().to(y.device)
         precision_prev = self.precision_covar.detach().to(y.device)
@@ -240,6 +240,8 @@ class SparseGP(nn.Module):
         # if epoch>0:
         #     self.variational_mean = mu_prev.to(y_k.device)
         # else:
+        print((mu_prev - mu_k).abs().sum())
+        print((precision_prev - precision_next).abs().sum())
         self.variational_mean = mu_k.to(y.device)
         self.variational_covar = Sigma_k.to(y.device)
         self.precision_covar = precision_next.to(y.device)

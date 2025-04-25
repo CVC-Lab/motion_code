@@ -89,11 +89,7 @@ class SumOfKernel(nn.Module):
         super(SumOfKernel, self).__init__()
         if not isinstance(kernel_func, list):
             self.kernels = nn.ModuleList([
-                kernel_func(
-                    lengthscale=0.5 + 0.1 * i,
-                    variance=1.0,
-                    alpha=1.0 + 0.1 * i
-                ) for i in range(L)
+                kernel_func() for i in range(L)
             ])
         self.raw_weights = nn.Parameter(torch.zeros(L))
 

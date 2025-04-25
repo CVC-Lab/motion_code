@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from .moskgp import MultiOutputSparseGPLayer, RationalQuadraticKernel, SumOfKernel
+from .moskgp import MultiOutputSparseGPLayer, RationalQuadraticKernel, RBFKernel, SumOfKernel
 
 def unpack_data_1d(X : torch.tensor, Y, labels):
     # Initialize lists to store x_list and y_list for each class
