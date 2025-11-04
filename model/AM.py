@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from .moskgp import MultiOutputSparseGPLayer, RationalQuadraticKernel, RBFKernel, SumOfKernel
+from .moskgp import MultiOutputSparseGPLayer, RationalQuadraticKernel, RBFKernel
 
 def unpack_data_1d(X : torch.tensor, Y, labels):
     # Initialize lists to store x_list and y_list for each class
@@ -28,8 +28,11 @@ class MultiPhaseAMModel(torch.nn.Module):
         self.sigma_y = sigma_y
         
         # inner model    
-        self.freq_model = MultiOutputSparseGPLayer(input_dim, num_inducing_points, num_latents, num_outputs, sigma_y=0.1)
-        self.wavelet_model = MultiOutputSparseGPLayer(input_dim, num_inducing_points, num_latents, num_outputs, sigma_y=0.1, kernel_func=RationalQuadraticKernel)
+        self.freq_model = MultiOutputSparseGPLayer(input_dim, num_inducing_points, num_outputs, sigma_y=0.1)
+        self.wavelet_model = MultiOutputSparseGPLayer(input_dim, num_inducing_points, num_outputs, sigma_y=0.1, kernel=RationalQuadraticKernel)
+
+        #self.freq_model = MultiOutputSparseGPLayer(input_dim, num_inducing_points, num_latents, num_outputs, sigma_y=0.1)
+        #self.wavelet_model = MultiOutputSparseGPLayer(input_dim, num_inducing_points, num_latents, num_outputs, sigma_y=0.1, kernel=RationalQuadraticKernel)
 
     def _fft_feat(self, x: torch.Tensor, nt=100):
         #TODO: remove this scale down scheme later
@@ -152,7 +155,7 @@ class MultiPhaseAMModel(torch.nn.Module):
             x_wavelet_list.append(x_list[l][:,:N//4,:] * 4)
             y_freq_list.append(fft_y.unsqueeze(-1))
             y_wavelet_list.append(wavelet_y[:,:N//4].unsqueeze(-1))
-        loss = self.freq_model.compute_loss(x_freq_list, y_freq_list, epoch=epoch) #+ self.wavelet_model.compute_loss(x_wavelet_list, y_wavelet_list, epoch=epoch)
+        loss = -self.freq_model.filtered_elbo_term(x_freq_list, y_freq_list) #+ self.wavelet_model.compute_loss(x_wavelet_list, y_wavelet_list, epoch=epoch)
         return loss
 
     @torch.no_grad()
